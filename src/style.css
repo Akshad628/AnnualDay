@@ -1,0 +1,28 @@
+/*
+ * FILE: src/style.css
+ * SYSTEM: UI / Visual Base
+ * RESPONSIBILITY: Strips away default browser styling margins/padding and guarantees the Three.js Canvas fills the literal entire window screen area with no scrollbars.
+ * INTERACTION: Served globally alongside index.html
+ * VISUAL RESULT: Ensures a native immersive "fullscreen application" feeling without white borders or accidental scroll bouncing.
+ */
+
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  
+  /* CRITICAL: Hides accidental scrollbars if camera projections mathematically over-extend 
+     the pixel boundaries slightly, maintaining edge-to-edge perfection. */
+  overflow: hidden;
+  
+  /* Underlying background in case WebGL rendering fails or halts. Black abyss. */
+  background: black;
+}
+
+canvas {
+  /* Prevents inline elements from adding obscure 4px bottom margins due to font baselines */
+  display: block;
+}
