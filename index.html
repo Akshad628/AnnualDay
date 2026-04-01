@@ -1,0 +1,189 @@
+<!--
+ * FILE: index.html
+ * SYSTEM: UI / Entry Point
+ * RESPONSIBILITY: The physical HTML document serving the WebGL `<canvas>` (injected by Three.js), alongside handling all HTML overlay content.
+ * INTERACTION: The main target for the browser. Imports `src/style.css` natively and loads `src/main.js` logically.
+ * VISUAL RESULT: Determines what users see on the very first frame before any 3D logic boots up. Controls the Intro Typography pacing, UI layout, VJ button positions, and the Finale scrolling credits HTML blocks.
+-->
+
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>You Are the World</title>
+  <style>
+    /* Default resets to prevent margins from destroying the strict Orthographic aspect ratio limits scaling. */
+    body { margin: 0; overflow: hidden; background-color: #05070a; color: white; font-family: sans-serif; }
+    #app { width: 100vw; height: 100vh; }
+
+    /* Hidden UI Layer - used exclusively for developers/performers tracking calibration state */
+    #ui-layer { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
+    .instructions { font-size: 14px; opacity: 0.7; margin-bottom: 10px; }
+    #status { font-weight: bold; color: #f4e6a2; }
+
+    /* The raw webcam feed must be attached to the DOM for MediaPipe to read it, but we strictly hide it from view */
+    video { position: absolute; opacity: 0; pointer-events: none; display: none; }
+  </style>
+</head>
+
+<body>
+  <!-- INVISIBLE DEBUG / CALIBRATION STATUS OVERLAY -->
+  <div id="ui-layer" style="display: none;">
+    <div class="instructions">
+      Press 'C' to calibrate stage width based on current singer positions.<br>
+      Currently tracking: <span id="status">Waiting for camera...</span>
+    </div>
+  </div>
+
+  <!-- 
+    INTRO / START SCREEN
+    Visual Impact: A pitch-black overlay wrapping the entire 3D scene (preventing it from showing), 
+    used to create a dramatic typewriter effect revealing the title card before dropping the curtain.
+  -->
+  <div id="start-overlay"
+    style="position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: #111111; color: #e6e6e6; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; cursor: pointer; font-family: 'Courier New', Courier, monospace; letter-spacing: 1px; transition: opacity 1s ease-out;">
+    <div id="intro-text-container" style="text-align: center; display: flex; flex-direction: column; align-items: center;"></div>
+    <div id="init-instruction" style="display: none;"></div>
+    <div id="start-instruction" style="display: none;"></div>
+  </div>
+
+  <style>
+    /* TYPEWRITER ANIMATION LOGIC */
+    @keyframes blink-caret { from, to { border-color: transparent } 50% { border-color: rgba(255, 165, 0, 0.8); } }
+    #init-instruction.pulse-active { animation: pulse 2s infinite; opacity: 1; }
+    @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+  </style>
+
+  <script>
+    // This inline script builds the procedural typing animation for the Title Sequence.
+    // WHY: Hardcoding it in HTML prevents blocking the massive Three.js initialization thread inside main.js.
+    // It guarantees the typewriter starts immediately on load.
+    document.addEventListener('DOMContentLoaded', () => {
+      const lines = [
+        { text: "AR/VR Research Lab, GCET presents", size: "2.25vw", color: "#a0a0a0", margin: "3vw" },
+        { text: "YOU ARE THE WORLD", size: "5.25vw", color: "#e6e6e6", margin: "3vw", spacing: "0.3vw" },
+        { text: "An Interactive Audiovisual Performance", size: "2.25vw", color: "#cccccc", margin: "4.5vw" },
+        { text: "Krishna Priya · Akshad · Ananya", size: "2.25vw", color: "#cccccc", margin: "0.75vw" },
+        { text: "with AI collaborators", size: "1.8vw", color: "#cccccc", margin: "0.75vw" },
+        { text: "ChatGPT · Gemini · Claude", size: "2.25vw", color: "#cccccc", margin: "0vw" }
+      ];
+
+      const container = document.getElementById('intro-text-container');
+      let currentLineIndex = 0;
+
+      function typeLine() {
+        if (currentLineIndex >= lines.length) {
+          const initEl = document.getElementById('init-instruction');
+          initEl.classList.add('pulse-active');
+          return;
+        }
+
+        const lineData = lines[currentLineIndex];
+        const lineEl = document.createElement('div');
+        // Setting styles via javascript objects dynamically handles CSS vw scaling directly
+        lineEl.style.fontSize = lineData.size;
+        lineEl.style.color = lineData.color;
+        lineEl.style.marginBottom = lineData.margin;
+        if (lineData.spacing) lineEl.style.letterSpacing = lineData.spacing;
+        lineEl.style.minHeight = lineData.size;
+
+        lineEl.innerHTML = `<span class="typed-text"></span><span class="caret" style="display: inline-block; border-right: 0.15em solid rgba(255, 165, 0, 0.8); animation: blink-caret .75s step-end infinite; width: 0.05em; height: 1em; vertical-align: bottom; margin-left: 2px;"></span>`;
+        container.appendChild(lineEl);
+
+        const textSpan = lineEl.querySelector('.typed-text');
+        const caretSpan = lineEl.querySelector('.caret');
+        let charIndex = 0;
+
+        function typeChar() {
+          if (charIndex < lineData.text.length) {
+            textSpan.textContent += lineData.text.charAt(charIndex);
+            charIndex++;
+            // Naturalistic typing variable delay creating human-rhythm typing sensation
+            setTimeout(typeChar, 60 + Math.random() * 40);
+          } else {
+            caretSpan.style.display = 'none'; // Hide caret when done
+            currentLineIndex++;
+            setTimeout(typeLine, 300); // 300ms pause between full lines
+          }
+        }
+        typeChar();
+      }
+
+      setTimeout(typeLine, 500); // Wait half a second before typing begins.
+    });
+  </script>
+  
+  <!-- VJ BACKSTAGE CONTROL PANEL -->
+  <!-- Visual Impact: Gives the show operator mouse-clickable fallbacks instead of requiring purely keyboard commands. Hidden securely in the top edge. -->
+  <div id="admin-panel" style="display: none;">
+    <button id="admin-toggle"
+      style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 5px 10px; cursor: pointer; border-radius: 4px; opacity: 0.2; transition: opacity 0.3s;">⚙️
+      VJ Controls</button>
+    <div id="admin-controls"
+      style="display: none; background: rgba(0,0,0,0.8); border: 1px solid #444; padding: 15px; border-radius: 8px; flex-direction: column; gap: 10px;">
+      <button id="btn-calibrate" style="padding: 8px 16px; background: #333; color: white; border: 1px solid #555; cursor: pointer;">Calibrate Stage (C)</button>
+      <button id="btn-force-finale" style="padding: 8px 16px; background: #522; color: white; border: 1px solid #733; cursor: pointer;">Force Finale (F)</button>
+    </div>
+  </div>
+  
+  <!-- 
+    FINALE CREDITS / OUTRO LAYER
+    Visual Impact: A heavy cinematic black overlay that slowly fades in after 'F' is pressed. 
+    A rigid massive div container holds typography designed to slowly scroll upward infinitely.
+  -->
+  <div id="finale-layer" style="position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.3); display: none; flex-direction: column; z-index: 150; font-family: 'Courier New', Courier, monospace; pointer-events: none; transition: opacity 2s;">
+    
+    <style>
+      #credits {
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        text-align: center; font-size: 2.2rem; line-height: 1.6; letter-spacing: 2px;
+        width: 80%; max-width: 900px;
+        overflow: hidden; height: 100%;
+      }
+      #credits .scroll-wrapper {
+        position: absolute; width: 100%;
+        /* Push entirely off-screen below bottom edge */
+        bottom: -200%;
+        /* VERY SENSITIVE: This 48s duration must map exactly to the runtime of the final credits song so the scroll ends perfectly on time. */
+        animation: scroll-up 48s linear forwards;
+      }
+      @keyframes scroll-up {
+        0% { transform: translateY(0); }
+        100% { transform: translateY(-400%); }
+      }
+      h1.title { font-size: 2.8rem; color: #fff; letter-spacing: 0.4rem; margin-bottom: 60px; text-transform: uppercase; border-bottom: 2px solid rgba(255,255,255,0.2); display: inline-block; padding-bottom: 10px; }
+      .credit-entry { margin-bottom: 35px; line-height: 1.5; }
+      .name { font-size: 1.6rem; font-weight: bold; display: block; color: #ffffff; text-transform: uppercase; }
+      .role { font-size: 1.1rem; color: #aaa; display: block; margin-top: 4px; }
+      .group-title { font-style: italic; color: orange; font-size: 0.95rem; margin-top: 3px; display: block; }
+    </style>
+
+    <!-- The actual text blob being scrolled. 300px spacer at bottom ensures it completely exits the top of screen gracefully. -->
+    <div id="credits" class="credits-container" style="opacity: 0; transition: opacity 2s;">
+      <div class="scroll-wrapper">
+        <h1 class="title">Human Collaborators</h1>
+        <div class="credit-entry"><span class="name">Krishna Priya</span><span class="role">Vocalist, Concept Artist</span><span class="group-title">AR/VR Research Lab</span></div>
+        <div class="credit-entry"><span class="name">Akshad Mishra</span><span class="role">Programmer, Technical Support</span><span class="group-title">AR/VR Research Lab</span></div>
+        <div class="credit-entry"><span class="name">Ananya Pulla</span><span class="role">Programmer, Vocalist</span><span class="group-title">AR/VR Research Lab, Maya</span></div>
+        <div class="credit-entry"><span class="name">Satwik</span><span class="role">Vocalist</span><span class="group-title">Maya</span></div>
+        <div class="credit-entry"><span class="name">Prateek</span><span class="role">Special Effects, Pianist</span><span class="group-title">Maya</span></div>
+        <div class="credit-entry"><span class="name">Aman</span><span class="role">Guitarist</span><span class="group-title">Kingfishers</span></div>
+        <div class="credit-entry"><span class="name">Surya</span><span class="role">Drummer</span><span class="group-title">Kingfishers</span></div>
+        <div style="height: 300px;"></div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Mounts the raw webcam element -->
+  <video id="webcam" autoplay playsinline></video>
+  
+  <!-- Three.js renderer attaches exactly here -->
+  <div id="app"></div>
+  
+  <!-- Execution start point -->
+  <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>
